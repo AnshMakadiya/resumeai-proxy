@@ -5,45 +5,41 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const GEMINI_KEY = process.env.GEMINI_KEY;
+const GROQ_KEY = process.env.GROQ_KEY;
 
 app.post('/generate', async (req, res) => {
   try {
     const { default: fetch } = await import('node-fetch');
 
-    // Extract the prompt from the incoming request
     const messages = req.body.messages || [];
     const prompt = messages.map(m => m.content).join('\n');
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2000,
-          }
-        })
-      }
-    );
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+        temperature: 0.7
+      })
+    });
 
     const data = await response.json();
-    console.log('Gemini response status:', response.status);
+    console.log('Groq response status:', response.status);
 
     if (!response.ok) {
-      console.error('Gemini error:', JSON.stringify(data));
-      return res.status(500).json({ error: data.error?.message || 'Gemini API error' });
+      console.error('Groq error:', JSON.stringify(data));
+      return res.status(500).json({ error: data.error?.message || 'Groq API error' });
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.choices?.[0]?.message?.content || '';
     console.log('Generated text length:', text.length);
 
-    // Return in same format as Anthropic so index.html doesn't need changes
+    // Return in same format as Anthropic so index.html works without changes
     res.json({
       content: [{ type: 'text', text }]
     });
